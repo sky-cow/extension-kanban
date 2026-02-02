@@ -1,0 +1,187 @@
+service: collaborative-task-board
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 30
+  
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    AWS_REGION: ${self:provider.region}
+    DYNAMODB_TABLE_PREFIX: ${self:service}-${self:provider.stage}
+    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID}
+    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID}
+    LOG_LEVEL: ${env:LOG_LEVEL, 'info'}
+    CORS_ORIGIN: ${env:CORS_ORIGIN, ''}
+  
+  iam:
+    role:
+      statements:
+        # DynamoDB permissions
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+            - dynamodb:TransactWriteItems
+          Resource:
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:service}-${self:provider.stage}-*
+        
+        # CloudWatch Logs permissions
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+        
+        # API Gateway WebSocket permissions
+        - Effect: Allow
+          Action:
+            - execute-api:ManageConnections
+          Resource:
+            - arn:aws:execute-api:${self:provider.region}:*:${self:service}-${self:provider.stage}/*
+
+functions:
+  # REST API
+  api:
+    handler: src/lambda.handler
+    events:
+      - http:
+          path: /
+          method: ANY
+          cors: true
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+  
+  # WebSocket - Connection
+  websocketConnect:
+    handler: src/websocket/connect.handler
+    events:
+      - websocket:
+          route: $connect
+          authorizer:
+            name: websocketAuthorizer
+            identitySource:
+              - route.request.querystring.token
+  
+  # WebSocket - Disconnection
+  websocketDisconnect:
+    handler: src/websocket/disconnect.handler
+    events:
+      - websocket:
+          route: $disconnect
+  
+  # WebSocket - Default route for messages
+  websocketDefault:
+    handler: src/websocket/message.handler
+    events:
+      - websocket:
+          route: $default
+
+resources:
+  Resources:
+    # DynamoDB Tables
+    BoardsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}-boards
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+    
+    BoardMembersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}-board-members
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: UserIndex
+            KeySchema:
+              - AttributeName: sk
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+    
+    # CloudWatch Log Groups
+    ApiLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-api
+        RetentionInDays: 30
+    
+    WebSocketLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-websocket
+        RetentionInDays: 30
+
+plugins:
+  - serverless-offline
+  - serverless-dynamodb-local
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    websocketPort: 3001
+  
+  dynamodb:
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+      seed: false
+
+package:
+  exclude:
+    - node_modules/**
+    - .git/**
+    - .env
+    - test/**
+    - docs/**
