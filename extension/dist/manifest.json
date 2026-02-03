@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "Collaborative Task Board",
+    "description": "Kanban board UI for the collaborative task backend.",
+    "version": "0.1.0",
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "Task Board"
+    },
+    "icons": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "permissions": [
+      "storage"
+    ],
+    "host_permissions": [
+      "http://localhost:3000/*"
+    ]
+  }
