@@ -4,7 +4,7 @@
  * Update these values with your AWS deployment endpoints
  */
 
-const CONFIG = {
+export const CONFIG = {
   // API Gateway REST endpoint
   //API_BASE_URL: 'https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/dev/api',
   API_BASE_URL: 'http://localhost:3000/api',
@@ -57,3 +57,5 @@ function validateConfig() {
 }
 
 validateConfig();
+
+export { validateConfig };

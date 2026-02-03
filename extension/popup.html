@@ -3,25 +3,10 @@
   <head>
     <meta charset="utf-8">
     <title>Task Board</title>
-    <link rel="stylesheet" href="src/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body>
-    <header class="header">
-      <h1>Task Board</h1>
-      <select id="board-select"></select>
-    </header>
-
-    <main id="board-container" class="board-container">
-      <!-- Lists and tasks will be injected here -->
-    </main>
-
-    <footer class="footer">
-      <button id="refresh-btn">Refresh</button>
-      <span id="status"></span>
-    </footer>
-
-    <script src="src/config.js"></script>
-    <script src="src/api/client.js"></script>
-    <script src="popup.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
