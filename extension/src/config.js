@@ -21,8 +21,8 @@ const CONFIG = {
   //COGNITO_DOMAIN: 'your-app-domain.auth.us-east-1.amazoncognito.com',
 
   COGNITO_REGION: 'us-east-1',
-  COGNITO_USER_POOL_ID: 'local-dev-pool',
-  COGNITO_CLIENT_ID: 'local-dev-client',
+  //COGNITO_USER_POOL_ID: 'local-dev-pool',  //remove this if you are not using Cognito
+  //COGNITO_CLIENT_ID: 'local-dev-client',  //remove this if you are not using Cognito
   COGNITO_DOMAIN: 'http://localhost:3000', // only if code uses it
   
   // Organization ID (you can make this dynamic later)
@@ -33,7 +33,8 @@ const CONFIG = {
  // ENABLE_OFFLINE_MODE: false,
 
   ENABLE_WEBSOCKET: false,        // start with WebSockets off if you like
-  ENABLE_OFFLINE_MODE: false,
+  // If true, the extension will use in-memory mock data and won't call the backend.
+  ENABLE_OFFLINE_MODE: true,
   
   // UI settings
   RECONNECT_DELAY: 5000, // 5 seconds
@@ -42,7 +43,10 @@ const CONFIG = {
 
 // Validate configuration on load
 function validateConfig() {
-  const required = ['API_BASE_URL', 'WS_URL', 'COGNITO_USER_POOL_ID', 'COGNITO_CLIENT_ID'];
+  // In offline/mock mode, Cognito is intentionally not configured.
+  const required = CONFIG.ENABLE_OFFLINE_MODE
+    ? ['API_BASE_URL']
+    : ['API_BASE_URL', 'WS_URL', 'COGNITO_USER_POOL_ID', 'COGNITO_CLIENT_ID'];
   const missing = required.filter(key => 
     !CONFIG[key] || CONFIG[key].includes('YOUR_') || CONFIG[key].includes('XXXXXXXXX')
   );

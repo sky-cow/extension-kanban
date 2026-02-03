@@ -16,6 +16,77 @@ function setStatus(text, isError = false) {
   statusEl.style.color = isError ? '#ffb3b3' : '#ffffff';
 }
 
+function getMockData() {
+  // Minimal seed data shaped like the backend responses (Board.toJSON / Task.toJSON)
+  const boardId = '11111111-1111-1111-1111-111111111111';
+  const listTodo = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const listDoing = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const listDone = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+
+  return {
+    boards: [
+      {
+        id: boardId,
+        name: 'Mock Board',
+        description: 'Frontend-only mock data (no backend/db/auth yet)',
+        organizationId: CONFIG.ORGANIZATION_ID || 'local-org',
+        createdBy: 'local-user-id',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isArchived: false,
+      },
+    ],
+    tasksByBoardId: {
+      [boardId]: [
+        {
+          id: 't1',
+          listId: listTodo,
+          title: 'Wire up Kanban UI',
+          description: 'Render lists and tasks from mock data',
+          link: '',
+          label: 'important',
+          assignedTo: null,
+          createdBy: 'local-user-id',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          order: 1,
+        },
+        {
+          id: 't2',
+          listId: listDoing,
+          title: 'Add drag & drop (later)',
+          description: 'Pure FE first; sync later when BE is ready',
+          link: '',
+          label: 'normal',
+          assignedTo: null,
+          createdBy: 'local-user-id',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          order: 1,
+        },
+        {
+          id: 't3',
+          listId: listDone,
+          title: 'Bootstrap extension shell',
+          description: 'manifest + popup + styles',
+          link: '',
+          label: 'low',
+          assignedTo: null,
+          createdBy: 'local-user-id',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          order: 1,
+        },
+      ],
+    },
+    listNameById: {
+      [listTodo]: 'To do',
+      [listDoing]: 'Doing',
+      [listDone]: 'Done',
+    },
+  };
+}
+
 // Call the real backend: GET /api/boards
 async function fetchBoards() {
   const response = await apiClient.request('/boards');
@@ -32,8 +103,9 @@ async function fetchBoardTasks(boardId) {
 
 async function loadBoards() {
   try {
-    setStatus('Loading boards...');
-    const boards = await fetchBoards();
+    setStatus(CONFIG.ENABLE_OFFLINE_MODE ? 'Loading boards (mock)...' : 'Loading boards...');
+    const mock = getMockData();
+    const boards = CONFIG.ENABLE_OFFLINE_MODE ? mock.boards : await fetchBoards();
 
     boardSelectEl.innerHTML = '';
 
@@ -52,18 +124,36 @@ async function loadBoards() {
 
     const firstBoardId = boardSelectEl.value;
     await loadBoard(firstBoardId);
-    setStatus('Loaded');
+    setStatus(CONFIG.ENABLE_OFFLINE_MODE ? 'Loaded (mock mode)' : 'Loaded');
   } catch (err) {
     console.error('Error loading boards:', err);
+    // Fallback to mock data so FE work can continue even if backend/db isn't up.
+    const mock = getMockData();
+    boardSelectEl.innerHTML = '';
+    mock.boards.forEach(board => {
+      const option = document.createElement('option');
+      option.value = board.id;
+      option.textContent = `${board.name} (mock)`;
+      boardSelectEl.appendChild(option);
+    });
+    if (mock.boards.length > 0) {
+      await loadBoard(mock.boards[0].id, { forceMock: true });
+      setStatus('Backend unavailable — using mock data', true);
+      return;
+    }
     setStatus('Failed to load boards', true);
   }
 }
 
-async function loadBoard(boardId) {
+async function loadBoard(boardId, opts = {}) {
   try {
-    setStatus('Loading board...');
+    const useMock = CONFIG.ENABLE_OFFLINE_MODE || opts.forceMock;
+    setStatus(useMock ? 'Loading board (mock)...' : 'Loading board...');
 
-    const tasks = await fetchBoardTasks(boardId);
+    const mock = getMockData();
+    const tasks = useMock
+      ? (mock.tasksByBoardId[boardId] || [])
+      : await fetchBoardTasks(boardId);
 
     // Group tasks by listId since we don't have list names yet
     const listsById = new Map();
@@ -74,7 +164,7 @@ async function loadBoard(boardId) {
       if (!listsById.has(listId)) {
         listsById.set(listId, {
           id: listId,
-          name: `List ${listId.slice(0, 6)}`, // placeholder name based on id
+          name: (useMock && mock.listNameById[listId]) ? mock.listNameById[listId] : `List ${listId.slice(0, 6)}`,
           tasks: []
         });
       }
@@ -147,7 +237,7 @@ async function loadBoard(boardId) {
       boardContainerEl.appendChild(listEl);
     });
 
-    setStatus('Board loaded');
+    setStatus(useMock ? 'Board loaded (mock mode)' : 'Board loaded');
   } catch (err) {
     console.error('Error loading board:', err);
     setStatus('Failed to load board', true);
