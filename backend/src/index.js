@@ -1,23 +1,28 @@
 /**
  * Server Entry Point
- * 
+ *
  * Starts the Express server
  */
 
-require('dotenv').config();
-const app = require('./app');
-const logger = require('./utils/logger');
+require("dotenv").config();
+const app = require("./app");
+const logger = require("./utils/logger");
 
 const PORT = process.env.PORT || 3000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 // Start server
 const server = app.listen(PORT, () => {
-  logger.info('Server started', {
+  logger.info("Server started", {
     port: PORT,
     environment: NODE_ENV,
     nodeVersion: process.version,
   });
+
+  // Simple console log for quick local debugging
+  console.log(
+    `Backend listening on http://localhost:${PORT} (env=${NODE_ENV})`,
+  );
 });
 
 // Export for serverless
