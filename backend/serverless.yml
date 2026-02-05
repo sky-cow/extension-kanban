@@ -1,24 +1,19 @@
 service: collaborative-task-board
 
-frameworkVersion: '3'
+frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ${opt:region, 'us-east-1'}
-  stage: ${opt:stage, 'dev'}
-  memorySize: 512
-  timeout: 30
-  
   environment:
-    NODE_ENV: ${self:provider.stage}
-    AWS_REGION: ${self:provider.region}
-    DYNAMODB_TABLE_PREFIX: ${self:service}-${self:provider.stage}
-    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID}
-    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID}
-    LOG_LEVEL: ${env:LOG_LEVEL, 'info'}
-    CORS_ORIGIN: ${env:CORS_ORIGIN, ''}
-  
+    # keep the google client id available to lambdas (set before deploy)
+    GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID, ''}
+    # if you previously set cognito keys and don't use them remove or default:
+    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
+    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
+    # other envs...
+
   iam:
     role:
       statements:
@@ -36,15 +31,15 @@ provider:
             - dynamodb:TransactWriteItems
           Resource:
             - arn:aws:dynamodb:${self:provider.region}:*:table/${self:service}-${self:provider.stage}-*
-        
+
         # CloudWatch Logs permissions
         - Effect: Allow
           Action:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          Resource: '*'
-        
+          Resource: "*"
+
         # API Gateway WebSocket permissions
         - Effect: Allow
           Action:
@@ -65,7 +60,7 @@ functions:
           path: /{proxy+}
           method: ANY
           cors: true
-  
+
   # WebSocket - Connection
   websocketConnect:
     handler: src/websocket/connect.handler
@@ -76,14 +71,14 @@ functions:
             name: websocketAuthorizer
             identitySource:
               - route.request.querystring.token
-  
+
   # WebSocket - Disconnection
   websocketDisconnect:
     handler: src/websocket/disconnect.handler
     events:
       - websocket:
           route: $disconnect
-  
+
   # WebSocket - Default route for messages
   websocketDefault:
     handler: src/websocket/message.handler
@@ -118,7 +113,7 @@ resources:
             Value: ${self:provider.stage}
           - Key: Service
             Value: ${self:service}
-    
+
     BoardMembersTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -146,14 +141,14 @@ resources:
             Value: ${self:provider.stage}
           - Key: Service
             Value: ${self:service}
-    
+
     # CloudWatch Log Groups
     ApiLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
         LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-api
         RetentionInDays: 30
-    
+
     WebSocketLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
@@ -168,7 +163,7 @@ custom:
   serverless-offline:
     httpPort: 3000
     websocketPort: 3001
-  
+
   dynamodb:
     stages:
       - dev

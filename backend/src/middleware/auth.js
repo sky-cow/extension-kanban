@@ -2,6 +2,7 @@
 
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
 const logger = require("../utils/logger");
+const { OAuth2Client } = require("google-auth-library");
 
 // Determine if we are in local/dev mode with no Cognito configured
 const isLocalDev =
@@ -18,6 +19,10 @@ if (!isLocalDev) {
     clientId: process.env.COGNITO_CLIENT_ID,
   });
 }
+
+// Use GOOGLE_CLIENT_ID env var (set this before deploy/run)
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 /**
  * Authentication middleware
@@ -165,6 +170,59 @@ const requireOrganization = (organizationId) => {
 
     next();
   };
+};
+
+/**
+ * Auth middleware
+ * Expects Authorization: Bearer <id_token>
+ * On success attaches req.user = { id, email, name }
+ */
+module.exports = async function auth(req, res, next) {
+  try {
+    // Local/dev: allow offline mock user if explicitly enabled
+    if (process.env.ENABLE_OFFLINE_MODE === "true") {
+      console.info("[auth] Offline mode enabled — using mock user");
+      req.user = {
+        id: "local-dev-user",
+        email: "dev@example.com",
+        name: "Dev User",
+      };
+      return next();
+    }
+
+    const header = req.headers.authorization || "";
+    const match = header.match(/^Bearer (.+)$/);
+    if (!match) {
+      console.warn("[auth] Missing Authorization header");
+      return res.status(401).json({ error: "Missing Authorization token" });
+    }
+
+    const idToken = match[1];
+    console.debug(
+      "[auth] Verifying ID token (masked):",
+      `${idToken.slice(0, 8)}...`,
+    );
+
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: GOOGLE_CLIENT_ID, // must match token audience
+    });
+
+    const payload = ticket.getPayload();
+    // log minimal info for debugging (avoid full token echo)
+    console.info("[auth] Token verified for", payload.email, payload.sub);
+
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name || payload.email,
+    };
+
+    return next();
+  } catch (err) {
+    console.error("[auth] Token verification failed:", err.message || err);
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
 };
 
 module.exports = {

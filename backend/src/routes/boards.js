@@ -7,7 +7,7 @@
 const express = require("express");
 const router = express.Router();
 const boardService = require("../services/boardService");
-const { authenticate } = require("../middleware/auth");
+const auth = require("../middleware/auth");
 const { validate, schemas } = require("../middleware/validator");
 const { asyncHandler, NotFoundError } = require("../middleware/errorHandler");
 
@@ -17,7 +17,7 @@ const { asyncHandler, NotFoundError } = require("../middleware/errorHandler");
  */
 router.get(
   "/",
-  authenticate,
+  auth,
   asyncHandler(async (req, res) => {
     logger.info("Boards list requested", {
       userId: req.user?.userId,
@@ -39,7 +39,7 @@ router.get(
  */
 router.post(
   "/",
-  authenticate,
+  auth,
   validate(schemas.createBoard, "body"),
   asyncHandler(async (req, res) => {
     const board = await boardService.createBoard(req.body, req.user.userId);
@@ -58,7 +58,7 @@ router.post(
  */
 router.get(
   "/:boardId",
-  authenticate,
+  auth,
   validate(schemas.boardIdParam, "params"),
   asyncHandler(async (req, res) => {
     const { boardId } = req.params;
@@ -90,7 +90,7 @@ router.get(
  */
 router.put(
   "/:boardId",
-  authenticate,
+  auth,
   validate(schemas.boardIdParam, "params"),
   validate(schemas.updateBoard, "body"),
   asyncHandler(async (req, res) => {
@@ -116,7 +116,7 @@ router.put(
  */
 router.delete(
   "/:boardId",
-  authenticate,
+  auth,
   validate(schemas.boardIdParam, "params"),
   asyncHandler(async (req, res) => {
     const { boardId } = req.params;
@@ -136,7 +136,7 @@ router.delete(
  */
 router.get(
   "/:boardId/members",
-  authenticate,
+  auth,
   validate(schemas.boardIdParam, "params"),
   asyncHandler(async (req, res) => {
     const { boardId } = req.params;
@@ -166,7 +166,7 @@ router.get(
  */
 router.post(
   "/:boardId/members",
-  authenticate,
+  auth,
   validate(schemas.boardIdParam, "params"),
   validate(schemas.addBoardMember, "body"),
   asyncHandler(async (req, res) => {
@@ -194,7 +194,7 @@ router.post(
  */
 router.delete(
   "/:boardId/members/:userId",
-  authenticate,
+  auth,
   validate(schemas.boardIdParam, "params"),
   asyncHandler(async (req, res) => {
     const { boardId, userId } = req.params;
