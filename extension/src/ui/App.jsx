@@ -18,7 +18,11 @@ import {
   ensureSeedData,
   loadWorkspace,
   saveWorkspace,
+  setCurrentUser,
+  loadSettings,
+  saveSettings,
 } from "../ui/data/workspaceStore.js";
+import { signIn, signOut, getAuthToken } from "../auth.js";
 import { BoardPicker } from "./components/BoardPicker.jsx";
 import { ListColumn } from "./components/ListColumn.jsx";
 import { TaskCard } from "./components/TaskCard.jsx";
@@ -50,15 +54,57 @@ export default function App() {
   );
   const [workspace, setWorkspace] = useState(null);
   const [activeTaskId, setActiveTaskId] = useState(null);
+  const [user, setUser] = useState(null);
+  const [settings, setSettings] = useState({
+    popupWidth: 600,
+    popupHeight: 600,
+    keepOpenInWindow: false,
+  });
+  const [authLoading, setAuthLoading] = useState(true);
+
+  console.log(213);
 
   useEffect(() => {
     (async () => {
-      await ensureSeedData();
-      const ws = await loadWorkspace();
-      setWorkspace(ws);
+      setAuthLoading(true);
+      try {
+        // Require sign-in on open. signIn will return a mock user in non-extension dev.
+        const info = await signIn();
+        console.debug("App: signIn() returned", info);
+        console.debug(
+          "App: CONFIG.ENABLE_OFFLINE_MODE =",
+          CONFIG.ENABLE_OFFLINE_MODE,
+        );
+        setUser(info);
+        await setCurrentUser(info);
+
+        // Try to read token (if available) for visibility
+        try {
+          const token = await getAuthToken();
+          console.debug("App: getAuthToken() =>", token);
+        } catch (tokenErr) {
+          console.debug("App: getAuthToken() error", tokenErr);
+        }
+
+        await ensureSeedData();
+        const ws = await loadWorkspace();
+        console.debug("App: loaded workspace", ws);
+        setWorkspace(ws);
+        const s = await loadSettings();
+        setSettings(s);
+        setStatus(
+          CONFIG.ENABLE_OFFLINE_MODE ? "Mock/offline mode" : "Live mode",
+        );
+      } catch (e) {
+        console.error("Auth/load failed", e);
+        setStatus("Please sign in to use the board");
+      } finally {
+        setAuthLoading(false);
+      }
     })().catch((e) => {
       console.error(e);
       setStatus("Failed to load workspace");
+      setAuthLoading(false);
     });
   }, []);
 
@@ -135,6 +181,47 @@ export default function App() {
       activeBoardId: id,
     };
     await commit(next, "Board created");
+  }
+
+  async function handleSignIn() {
+    try {
+      const info = await signIn();
+      setUser(info);
+      await setCurrentUser(info);
+      setStatus("Signed in");
+    } catch (err) {
+      console.error("Sign-in failed", err);
+      setStatus("Sign-in failed");
+    }
+  }
+
+  async function handleSignOut() {
+    await signOut();
+    setUser(null);
+    setStatus("Signed out");
+  }
+
+  async function applySettings(next) {
+    const merged = { ...settings, ...next };
+    setSettings(merged);
+    await saveSettings(merged);
+    // If keepOpenInWindow is enabled, open a new window and close popup
+    if (
+      merged.keepOpenInWindow &&
+      typeof chrome !== "undefined" &&
+      chrome.windows
+    ) {
+      chrome.windows.create({
+        url: "/popup.html",
+        type: "popup",
+        width: merged.popupWidth,
+        height: merged.popupHeight,
+      });
+      // close current popup if running as extension action
+      if (chrome.runtime && chrome.windows) {
+        window.close();
+      }
+    }
   }
 
   async function onRenameBoard(boardId, name) {
@@ -352,6 +439,41 @@ export default function App() {
   }
 
   if (!workspace || !activeBoard) {
+    // While authenticating, show a loading state.
+    if (authLoading) {
+      return (
+        <div className="app">
+          <div className="topbar">
+            <div className="brand">Task Board</div>
+            <div className="status">{status}</div>
+          </div>
+          <div className="empty">Loading…</div>
+        </div>
+      );
+    }
+
+    // If not authenticated, require sign-in before using the board.
+    if (!user) {
+      return (
+        <div className="app">
+          <div className="topbar">
+            <div className="brand">Task Board</div>
+            <div className="status">{status}</div>
+          </div>
+          <div style={{ padding: 20 }}>
+            <h3>Please sign in with Google to continue</h3>
+            <p>
+              You must be signed in to use the board. Your Gmail address will be
+              used as your username.
+            </p>
+            <button className="btn" onClick={handleSignIn}>
+              Sign in with Google
+            </button>
+          </div>
+        </div>
+      );
+    }
+    // Otherwise we have no workspace/board but are authenticated: show loading.
     return (
       <div className="app">
         <div className="topbar">
@@ -369,6 +491,50 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <div className="brand">Task Board</div>
+        <div className="topControls">
+          {user ? (
+            <div className="userInfo">
+              <span className="userName">{user.name || user.email}</span>
+              <button className="btn small" onClick={handleSignOut}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button className="btn" onClick={handleSignIn}>
+              Sign in with Google
+            </button>
+          )}
+
+          <div className="settings">
+            <label style={{ fontSize: 12, marginRight: 6 }}>Popup</label>
+            <input
+              type="number"
+              value={settings.popupWidth}
+              style={{ width: 60 }}
+              onChange={(e) =>
+                applySettings({ popupWidth: Number(e.target.value) || 600 })
+              }
+            />
+            <input
+              type="number"
+              value={settings.popupHeight}
+              style={{ width: 60, marginLeft: 6 }}
+              onChange={(e) =>
+                applySettings({ popupHeight: Number(e.target.value) || 600 })
+              }
+            />
+            <label style={{ marginLeft: 8, fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={settings.keepOpenInWindow}
+                onChange={(e) =>
+                  applySettings({ keepOpenInWindow: e.target.checked })
+                }
+              />{" "}
+              Open in window
+            </label>
+          </div>
+        </div>
         <BoardPicker
           boards={workspace.boards}
           activeBoardId={activeBoard.id}
