@@ -30,6 +30,7 @@ function setStatus(text, isError = false) {
 
 function getMockData() {
   // Minimal seed data shaped like the backend responses (Board.toJSON / Task.toJSON)
+  console.log("you sweet man");
   const boardId = "11111111-1111-1111-1111-111111111111";
   const listTodo = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   const listDoing = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";

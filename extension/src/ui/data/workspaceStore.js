@@ -70,7 +70,7 @@ function seedWorkspace() {
     boards: [
       {
         id: boardId,
-        name: "Client Board",
+        name: "well well well",
         description: "One client at a time, shared across teams.",
         organizationId,
         createdBy: currentUserId,

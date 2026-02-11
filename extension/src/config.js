@@ -6,12 +6,11 @@
 
 export const CONFIG = {
   // API Gateway REST endpoint
-  //API_BASE_URL: 'https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/dev/api',
-  API_BASE_URL: "http://localhost:3000/api",
+  API_BASE_URL:
+    "https://kb85k625j8.execute-api.us-east-1.amazonaws.com/dev/api",
 
   // API Gateway WebSocket endpoint
-  // WS_URL: 'wss://YOUR_WS_ID.execute-api.us-east-1.amazonaws.com/dev',
-  WS_URL: "ws://localhost:3001", // or leave as-is if not using yet
+  WS_URL: "wss://cqzeseqvi6.execute-api.us-east-1.amazonaws.com/dev",
 
   // AWS Cognito configuration
   //COGNITO_REGION: 'us-east-1',
@@ -27,7 +26,7 @@ export const CONFIG = {
   GOOGLE_CLIENT_ID:
     "387188006692-oro760rkstomtlh7l18panmrfgkpdomj.apps.googleusercontent.com",
 
-  // Organization ID (you can make this dynamic later)
+  //` Organization ID (you can make this dynamic later)`
   ORGANIZATION_ID: "your-organization-uuid",
 
   // Feature flags

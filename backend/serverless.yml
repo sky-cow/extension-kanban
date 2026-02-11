@@ -1,51 +1,51 @@
-service: collaborative-task-board
+service: taskboard
 
-frameworkVersion: "3"
+custom:
+  tablePrefix: ${env:DYNAMODB_TABLE_PREFIX, 'taskboard-dev'}
+  serviceName: ${env:SERVICE_NAME, 'taskboard'}
+  stage: ${opt:stage, 'dev'}
+
+  # local/dev plugin settings (moved here to avoid duplicate 'custom' mappings)
+  serverless-offline:
+    httpPort: 3000
+    websocketPort: 3001
+
+  dynamodb:
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+      seed: false
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ${opt:region, 'us-east-1'}
+  stage: ${self:custom.stage}
   environment:
-    # keep the google client id available to lambdas (set before deploy)
+    DYNAMODB_TABLE_PREFIX: ${self:custom.tablePrefix}
     GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID, ''}
-    # if you previously set cognito keys and don't use them remove or default:
     COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
     COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
-    # other envs...
-
   iam:
     role:
       statements:
-        # DynamoDB permissions
         - Effect: Allow
           Action:
             - dynamodb:Query
-            - dynamodb:Scan
             - dynamodb:GetItem
             - dynamodb:PutItem
             - dynamodb:UpdateItem
             - dynamodb:DeleteItem
-            - dynamodb:BatchGetItem
             - dynamodb:BatchWriteItem
             - dynamodb:TransactWriteItems
-          Resource:
-            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:service}-${self:provider.stage}-*
-
-        # CloudWatch Logs permissions
-        - Effect: Allow
-          Action:
-            - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          Resource: "*"
-
-        # API Gateway WebSocket permissions
-        - Effect: Allow
-          Action:
-            - execute-api:ManageConnections
           Resource:
-            - arn:aws:execute-api:${self:provider.region}:*:${self:service}-${self:provider.stage}/*
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablePrefix}-*
+            - arn:aws:logs:${self:provider.region}:*:log-group:/aws/lambda/${self:service}-${self:provider.stage}-*
 
 functions:
   # REST API
@@ -72,6 +72,10 @@ functions:
             identitySource:
               - route.request.querystring.token
 
+  # WebSocket Authorizer (registered so serverless knows the function exists)
+  websocketAuthorizer:
+    handler: src/websocket/authorizer.handler
+
   # WebSocket - Disconnection
   websocketDisconnect:
     handler: src/websocket/disconnect.handler
@@ -92,7 +96,7 @@ resources:
     BoardsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:service}-${self:provider.stage}-boards
+        TableName: ${self:custom.tablePrefix}-boards
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: pk
@@ -112,7 +116,7 @@ resources:
           - Key: Environment
             Value: ${self:provider.stage}
           - Key: Service
-            Value: ${self:service}
+            Value: ${self:custom.serviceName}
 
     BoardMembersTable:
       Type: AWS::DynamoDB::Table
@@ -158,20 +162,6 @@ resources:
 plugins:
   - serverless-offline
   - serverless-dynamodb-local
-
-custom:
-  serverless-offline:
-    httpPort: 3000
-    websocketPort: 3001
-
-  dynamodb:
-    stages:
-      - dev
-    start:
-      port: 8000
-      inMemory: true
-      migrate: true
-      seed: false
 
 package:
   exclude:
